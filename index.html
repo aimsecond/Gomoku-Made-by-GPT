@@ -1,295 +1,235 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gomoku vs. AI (Five in a Row)</title>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background-color: #f7f7f7;
-      margin: 0;
-      padding: 20px;
-      overflow-x: hidden;
-    }
-    h1 {
-      margin-top: 20px;
-    }
-    #board {
-      position: relative;
-      margin: 20px auto;
-      background-color: #e4d7b5;
-    }
-    #boardCanvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 0;
-    }
-    .intersection {
-      position: absolute;
-      z-index: 1;
-      background: transparent;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-    .stone {
-      position: absolute;
-      border-radius: 50%;
-      animation: pop-in 0.3s ease-out;
-      z-index: 2;
-    }
-    .black {
-      background: black;
-    }
-    .white {
-      background: white;
-      border: 1px solid #ccc;
-    }
-    @keyframes pop-in {
-      from { transform: scale(0); }
-      to { transform: scale(1); }
-    }
-    .winning-stone {
-      animation: glow 1s infinite alternate;
-    }
-    @keyframes glow {
-      from { box-shadow: 0 0 10px 5px yellow; }
-      to { box-shadow: 0 0 20px 10px orange; }
-    }
-    .ribbon {
-      position: fixed;
-      width: 10px;
-      height: 40px;
-      opacity: 0.8;
-      z-index: 1000;
-      animation: fall 2s ease-out forwards;
-    }
-    @keyframes fall {
-      0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
-      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
-    }
-    #message {
-      margin: 20px;
-      font-size: 1.2em;
-    }
-    #restart {
-      padding: 10px 20px;
-      font-size: 1em;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
-  <h1>Gomoku vs. AI (Five in a Row)</h1>
-  <div id="board">
-    <canvas id="boardCanvas"></canvas>
-  </div>
-  <div id="message">Current Turn: Black</div>
-  <button id="restart">Restart Game</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gomoku vs. AI (Five in a Row)</title>
+    <!-- Add Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
 
-  <script>
-    /********** CONFIGURATION **********/
-    const boardSize = 15;
-    const spacing = 40;
-    const boardMargin = 20;
-    const stoneSize = 30;
-    const clickAreaSize = 30;
-    const boardPixelSize = boardMargin * 2 + spacing * (boardSize - 1);
-    const AI_SEARCH_DEPTH = 4;
+    <!-- Add Bootstrap JavaScript and Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background-color: #f7f7f7;
+        margin: 0;
+        padding: 20px;
+        overflow-x: hidden;
+      }
+      h1 {
+        margin-top: 20px;
+      }
+      #board {
+        position: relative;
+        margin: 20px auto;
+        background-color: #e4d7b5;
+      }
+      #boardCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+      }
+      .intersection {
+        position: absolute;
+        z-index: 1;
+        background: transparent;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .stone {
+        position: absolute;
+        border-radius: 50%;
+        animation: pop-in 0.3s ease-out;
+        z-index: 2;
+      }
+      .black {
+        background: black;
+      }
+      .white {
+        background: white;
+        border: 1px solid #ccc;
+      }
+      @keyframes pop-in {
+        from {
+          transform: scale(0);
+        }
+        to {
+          transform: scale(1);
+        }
+      }
+      .winning-stone {
+        animation: glow 1s infinite alternate;
+      }
+      @keyframes glow {
+        from {
+          box-shadow: 0 0 10px 5px yellow;
+        }
+        to {
+          box-shadow: 0 0 20px 10px orange;
+        }
+      }
+      .ribbon {
+        position: fixed;
+        width: 10px;
+        height: 40px;
+        opacity: 0.8;
+        z-index: 1000;
+        animation: fall 2s ease-out forwards;
+      }
+      @keyframes fall {
+        0% {
+          transform: translateY(-100px) rotate(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(100vh) rotate(720deg);
+          opacity: 0;
+        }
+      }
+      #message {
+        margin: 20px;
+        font-size: 1.2em;
+      }
+      #restart {
+        padding: 10px 20px;
+        font-size: 1em;
+        width: auto;
+        min-height: 44px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Update HTML structure with Bootstrap classes -->
+    <div class="container-fluid p-0">
+      <div class="game-container">
+        <h1 class="display-6 mb-4">Gomoku vs. AI (Five in a Row)</h1>
+        <div id="board">
+          <canvas id="boardCanvas"></canvas>
+        </div>
+        <div id="message" class="alert alert-info my-3">
+          Current Turn: Black
+        </div>
+        <button id="restart" class="btn btn-primary">Restart Game</button>
+      </div>
+    </div>
 
-    /********** STATE VARIABLES **********/
-    let board = [];
-    let stoneElements = {};
-    let currentPlayer = 'black';
-    let gameOver = false;
+    <script>
+      /********** CONFIGURATION **********/
+      const boardSize = 15;
+      const spacing = 40;
+      const boardMargin = 20;
+      const stoneSize = 30;
+      const clickAreaSize = 30;
+      const boardPixelSize = boardMargin * 2 + spacing * (boardSize - 1);
+      const AI_SEARCH_DEPTH = 4;
 
-    const PATTERN_WEIGHTS = {
-      five: 1000000,
-      openFour: 100000,      // Increased weights for opponent threats
-      closedFour: 5000,
-      openThree: 3000,       // Higher priority for blocking open threes
-      closedThree: 300,
-      openTwo: 100,
-      potentialFour: 5000   // Higher weight for potential fours
-    };
+      /********** STATE VARIABLES **********/
+      let board = [];
+      let stoneElements = {};
+      let currentPlayer = "black";
+      let gameOver = false;
 
-    /********** DOM ELEMENTS **********/
-    const boardContainer = document.getElementById("board");
-    const canvas = document.getElementById("boardCanvas");
-    const ctx = canvas.getContext("2d");
-    const messageEl = document.getElementById("message");
-    const restartBtn = document.getElementById("restart");
+      const PATTERN_WEIGHTS = {
+        five: 1000000,
+        openFour: 100000, // Increased weights for opponent threats
+        closedFour: 5000,
+        openThree: 3000, // Higher priority for blocking open threes
+        closedThree: 300,
+        openTwo: 100,
+        potentialFour: 5000, // Higher weight for potential fours
+      };
 
-    /********** BOARD INITIALIZATION **********/
-    function initBoard() {
-      board = [];
-      for (let i = 0; i < boardSize; i++) {
-        board[i] = [];
+      /********** DOM ELEMENTS **********/
+      const boardContainer = document.getElementById("board");
+      const canvas = document.getElementById("boardCanvas");
+      const ctx = canvas.getContext("2d");
+      const messageEl = document.getElementById("message");
+      const restartBtn = document.getElementById("restart");
+
+      /********** BOARD INITIALIZATION **********/
+      function initBoard() {
+        board = [];
+        for (let i = 0; i < boardSize; i++) {
+          board[i] = [];
+          for (let j = 0; j < boardSize; j++) {
+            board[i][j] = "";
+          }
+        }
+        currentPlayer = "black";
+        gameOver = false;
+        messageEl.textContent = "Current Turn: Black";
+        stoneElements = {};
+        boardContainer.innerHTML = "";
+        boardContainer.appendChild(canvas);
+        boardContainer.style.width = boardPixelSize + "px";
+        boardContainer.style.height = boardPixelSize + "px";
+        canvas.width = boardPixelSize;
+        canvas.height = boardPixelSize;
+        drawBoardLines();
+        createIntersections();
+      }
+
+      /********** DRAW BOARD LINES **********/
+      function drawBoardLines() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < boardSize; i++) {
+          const y = boardMargin + i * spacing;
+          ctx.beginPath();
+          ctx.moveTo(boardMargin, y);
+          ctx.lineTo(boardPixelSize - boardMargin, y);
+          ctx.stroke();
+        }
         for (let j = 0; j < boardSize; j++) {
-          board[i][j] = "";
+          const x = boardMargin + j * spacing;
+          ctx.beginPath();
+          ctx.moveTo(x, boardMargin);
+          ctx.lineTo(x, boardPixelSize - boardMargin);
+          ctx.stroke();
         }
       }
-      currentPlayer = "black";
-      gameOver = false;
-      messageEl.textContent = "Current Turn: Black";
-      stoneElements = {};
-      boardContainer.innerHTML = "";
-      boardContainer.appendChild(canvas);
-      boardContainer.style.width = boardPixelSize + "px";
-      boardContainer.style.height = boardPixelSize + "px";
-      canvas.width = boardPixelSize;
-      canvas.height = boardPixelSize;
-      drawBoardLines();
-      createIntersections();
-    }
 
-    /********** DRAW BOARD LINES **********/
-    function drawBoardLines() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "#333";
-      ctx.lineWidth = 1;
-      for (let i = 0; i < boardSize; i++) {
-        const y = boardMargin + i * spacing;
-        ctx.beginPath();
-        ctx.moveTo(boardMargin, y);
-        ctx.lineTo(boardPixelSize - boardMargin, y);
-        ctx.stroke();
-      }
-      for (let j = 0; j < boardSize; j++) {
-        const x = boardMargin + j * spacing;
-        ctx.beginPath();
-        ctx.moveTo(x, boardMargin);
-        ctx.lineTo(x, boardPixelSize - boardMargin);
-        ctx.stroke();
-      }
-    }
-
-    /********** CREATE INTERSECTIONS **********/
-    function createIntersections() {
-      for (let row = 0; row < boardSize; row++) {
-        for (let col = 0; col < boardSize; col++) {
-          const inter = document.createElement("div");
-          inter.classList.add("intersection");
-          const x = boardMargin + col * spacing;
-          const y = boardMargin + row * spacing;
-          inter.style.width = clickAreaSize + "px";
-          inter.style.height = clickAreaSize + "px";
-          inter.style.left = (x - clickAreaSize / 2) + "px";
-          inter.style.top = (y - clickAreaSize / 2) + "px";
-          inter.dataset.row = row;
-          inter.dataset.col = col;
-          inter.addEventListener("click", handleIntersectionClick);
-          boardContainer.appendChild(inter);
-        }
-      }
-    }
-
-    /********** HANDLE HUMAN MOVE **********/
-    function handleIntersectionClick(e) {
-      if (gameOver || currentPlayer !== "black") return;
-      const row = parseInt(e.currentTarget.dataset.row, 10);
-      const col = parseInt(e.currentTarget.dataset.col, 10);
-      if (board[row][col] !== "") return;
-      board[row][col] = "black";
-      placeStone(row, col, "black");
-      const winPositions = checkWin(row, col, "black");
-      if (winPositions) {
-        messageEl.textContent = "Black wins!";
-        gameOver = true;
-        highlightWinningStones(winPositions);
-        triggerCelebrationEffect();
-        return;
-      }
-      if (isBoardFull()) {
-        messageEl.textContent = "Draw!";
-        gameOver = true;
-        return;
-      }
-      currentPlayer = "white";
-      messageEl.textContent = "AI is thinking...";
-      setTimeout(aiMakeMove, 500);
-    }
-
-    /********** PLACE STONE (UI) **********/
-    function placeStone(row, col, player) {
-      const stone = document.createElement("div");
-      stone.classList.add("stone", player);
-      stone.style.width = stoneSize + "px";
-      stone.style.height = stoneSize + "px";
-      const x = boardMargin + col * spacing;
-      const y = boardMargin + row * spacing;
-      stone.style.left = (x - stoneSize / 2) + "px";
-      stone.style.top = (y - stoneSize / 2) + "px";
-      boardContainer.appendChild(stone);
-      stoneElements[`${row}-${col}`] = stone;
-    }
-
-    /********** WIN DETECTION **********/
-    function checkWin(row, col, player) {
-      const directions = [
-        { dr: 0, dc: 1 }, { dr: 1, dc: 0 },
-        { dr: 1, dc: 1 }, { dr: 1, dc: -1 }
-      ];
-      for (let { dr, dc } of directions) {
-        const line = getLine(row, col, dr, dc, player);
-        if (line.length >= 5) return line;
-      }
-      return null;
-    }
-
-    function getLine(row, col, dr, dc, player) {
-      let line = [[row, col]];
-      let r = row + dr, c = col + dc;
-      while (isValid(r, c) && board[r][c] === player) {
-        line.push([r, c]);
-        r += dr;
-        c += dc;
-      }
-      r = row - dr, c = col - dc;
-      while (isValid(r, c) && board[r][c] === player) {
-        line.unshift([r, c]);
-        r -= dr;
-        c -= dc;
-      }
-      return line;
-    }
-
-    function isValid(row, col) {
-      return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
-    }
-
-    /********** AI IMPROVEMENTS **********/
-    function aiMakeMove() {
-      if (gameOver) return;
-      
-      const startTime = Date.now();
-      let bestMove = null;
-      let bestValue = -Infinity;
-      const moves = getCandidateMoves();
-      
-      for (let depth = 1; depth <= AI_SEARCH_DEPTH; depth++) {
-        if (Date.now() - startTime > 10000) break;
-        
-        for (const move of moves) {
-          board[move.row][move.col] = "white";
-          const value = minimax(depth, false, -Infinity, Infinity);
-          board[move.row][move.col] = "";
-          if (value > bestValue) {
-            bestValue = value;
-            bestMove = move;
+      /********** CREATE INTERSECTIONS **********/
+      function createIntersections() {
+        for (let row = 0; row < boardSize; row++) {
+          for (let col = 0; col < boardSize; col++) {
+            const inter = document.createElement("div");
+            inter.classList.add("intersection");
+            const x = boardMargin + col * spacing;
+            const y = boardMargin + row * spacing;
+            inter.style.width = clickAreaSize + "px";
+            inter.style.height = clickAreaSize + "px";
+            inter.style.left = x - clickAreaSize / 2 + "px";
+            inter.style.top = y - clickAreaSize / 2 + "px";
+            inter.dataset.row = row;
+            inter.dataset.col = col;
+            inter.addEventListener("click", handleIntersectionClick);
+            boardContainer.appendChild(inter);
           }
         }
       }
 
-      if (bestMove) {
-        board[bestMove.row][bestMove.col] = "white";
-        placeStone(bestMove.row, bestMove.col, "white");
-        const winPositions = checkWin(bestMove.row, bestMove.col, "white");
+      /********** HANDLE HUMAN MOVE **********/
+      function handleIntersectionClick(e) {
+        if (gameOver || currentPlayer !== "black") return;
+        const row = parseInt(e.currentTarget.dataset.row, 10);
+        const col = parseInt(e.currentTarget.dataset.col, 10);
+        if (board[row][col] !== "") return;
+        board[row][col] = "black";
+        placeStone(row, col, "black");
+        const winPositions = checkWin(row, col, "black");
         if (winPositions) {
-          messageEl.textContent = "White wins!";
+          messageEl.textContent = "Black wins!";
           gameOver = true;
           highlightWinningStones(winPositions);
           triggerCelebrationEffect();
@@ -300,289 +240,413 @@
           gameOver = true;
           return;
         }
-        currentPlayer = "black";
-        messageEl.textContent = "Current Turn: Black";
+        currentPlayer = "white";
+        messageEl.textContent = "AI is thinking...";
+        setTimeout(aiMakeMove, 500);
       }
-    }
 
-    /********** IMPROVED CANDIDATE MOVES **********/
-    function getCandidateMoves() {
-      const moves = new Set();
-      const threatMap = new Map();
+      /********** PLACE STONE (UI) **********/
+      function placeStone(row, col, player) {
+        const stone = document.createElement("div");
+        stone.classList.add("stone", player);
+        stone.style.width = stoneSize + "px";
+        stone.style.height = stoneSize + "px";
+        const x = boardMargin + col * spacing;
+        const y = boardMargin + row * spacing;
+        stone.style.left = x - stoneSize / 2 + "px";
+        stone.style.top = y - stoneSize / 2 + "px";
+        boardContainer.appendChild(stone);
+        stoneElements[`${row}-${col}`] = stone;
+      }
 
-      // First pass: detect immediate threats
-      for (let r = 0; r < boardSize; r++) {
-        for (let c = 0; c < boardSize; c++) {
-          if (board[r][c] === "") {
-            // Check if this position blocks a black pattern
-            const threatLevel = calculateThreatLevel(r, c, "black");
-            if (threatLevel > 0) {
-              threatMap.set(`${r}-${c}`, threatLevel);
+      /********** WIN DETECTION **********/
+      function checkWin(row, col, player) {
+        const directions = [
+          { dr: 0, dc: 1 },
+          { dr: 1, dc: 0 },
+          { dr: 1, dc: 1 },
+          { dr: 1, dc: -1 },
+        ];
+        for (let { dr, dc } of directions) {
+          const line = getLine(row, col, dr, dc, player);
+          if (line.length >= 5) return line;
+        }
+        return null;
+      }
+
+      function getLine(row, col, dr, dc, player) {
+        let line = [[row, col]];
+        let r = row + dr,
+          c = col + dc;
+        while (isValid(r, c) && board[r][c] === player) {
+          line.push([r, c]);
+          r += dr;
+          c += dc;
+        }
+        (r = row - dr), (c = col - dc);
+        while (isValid(r, c) && board[r][c] === player) {
+          line.unshift([r, c]);
+          r -= dr;
+          c -= dc;
+        }
+        return line;
+      }
+
+      function isValid(row, col) {
+        return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
+      }
+
+      /********** AI IMPROVEMENTS **********/
+      function aiMakeMove() {
+        if (gameOver) return;
+
+        const startTime = Date.now();
+        let bestMove = null;
+        let bestValue = -Infinity;
+        const moves = getCandidateMoves();
+
+        for (let depth = 1; depth <= AI_SEARCH_DEPTH; depth++) {
+          if (Date.now() - startTime > 10000) break;
+
+          for (const move of moves) {
+            board[move.row][move.col] = "white";
+            const value = minimax(depth, false, -Infinity, Infinity);
+            board[move.row][move.col] = "";
+            if (value > bestValue) {
+              bestValue = value;
+              bestMove = move;
             }
           }
         }
+
+        if (bestMove) {
+          board[bestMove.row][bestMove.col] = "white";
+          placeStone(bestMove.row, bestMove.col, "white");
+          const winPositions = checkWin(bestMove.row, bestMove.col, "white");
+          if (winPositions) {
+            messageEl.textContent = "White wins!";
+            gameOver = true;
+            highlightWinningStones(winPositions);
+            triggerCelebrationEffect();
+            return;
+          }
+          if (isBoardFull()) {
+            messageEl.textContent = "Draw!";
+            gameOver = true;
+            return;
+          }
+          currentPlayer = "black";
+          messageEl.textContent = "Current Turn: Black";
+        }
       }
 
-      // Second pass: collect moves around existing stones
-      for (let r = 0; r < boardSize; r++) {
-        for (let c = 0; c < boardSize; c++) {
-          if (board[r][c] !== "") {
-            for (let dr = -2; dr <= 2; dr++) {
-              for (let dc = -2; dc <= 2; dc++) {
-                const nr = r + dr, nc = c + dc;
-                if (isValid(nr, nc) && board[nr][nc] === "") {
-                  moves.add(`${nr}-${nc}`);
+      /********** IMPROVED CANDIDATE MOVES **********/
+      function getCandidateMoves() {
+        const moves = new Set();
+        const threatMap = new Map();
+
+        // First pass: detect immediate threats
+        for (let r = 0; r < boardSize; r++) {
+          for (let c = 0; c < boardSize; c++) {
+            if (board[r][c] === "") {
+              // Check if this position blocks a black pattern
+              const threatLevel = calculateThreatLevel(r, c, "black");
+              if (threatLevel > 0) {
+                threatMap.set(`${r}-${c}`, threatLevel);
+              }
+            }
+          }
+        }
+
+        // Second pass: collect moves around existing stones
+        for (let r = 0; r < boardSize; r++) {
+          for (let c = 0; c < boardSize; c++) {
+            if (board[r][c] !== "") {
+              for (let dr = -2; dr <= 2; dr++) {
+                for (let dc = -2; dc <= 2; dc++) {
+                  const nr = r + dr,
+                    nc = c + dc;
+                  if (isValid(nr, nc) && board[nr][nc] === "") {
+                    moves.add(`${nr}-${nc}`);
+                  }
                 }
               }
             }
           }
         }
+
+        // Combine threat positions with regular moves
+        const candidateMoves = Array.from(moves).map((s) => {
+          const [r, c] = s.split("-").map(Number);
+          const threatScore = threatMap.get(s) || 0;
+          return {
+            row: r,
+            col: c,
+            score: quickEvaluate(r, c) + threatScore * 100, // Prioritize threat blocks
+          };
+        });
+
+        // Sort and limit to top candidates
+        return candidateMoves.sort((a, b) => b.score - a.score).slice(0, 20);
       }
 
-      // Combine threat positions with regular moves
-      const candidateMoves = Array.from(moves).map(s => {
-        const [r, c] = s.split('-').map(Number);
-        const threatScore = threatMap.get(s) || 0;
-        return {
-          row: r,
-          col: c,
-          score: quickEvaluate(r, c) + threatScore * 100  // Prioritize threat blocks
-        };
-      });
+      /********** NEW THREAT DETECTION FUNCTION **********/
+      function calculateThreatLevel(r, c, opponent) {
+        let threatLevel = 0;
+        const directions = [
+          [0, 1],
+          [1, 0],
+          [1, 1],
+          [1, -1],
+        ];
 
-      // Sort and limit to top candidates
-      return candidateMoves.sort((a, b) => b.score - a.score).slice(0, 20);
-    }
+        directions.forEach(([dr, dc]) => {
+          let sequence = 0;
+          let openEnds = 0;
 
-    /********** NEW THREAT DETECTION FUNCTION **********/
-    function calculateThreatLevel(r, c, opponent) {
-      let threatLevel = 0;
-      const directions = [[0,1], [1,0], [1,1], [1,-1]];
-      
-      directions.forEach(([dr, dc]) => {
-        let sequence = 0;
-        let openEnds = 0;
-        
-        // Check in both directions
-        for (let dir = -1; dir <= 1; dir += 2) {
-          let nr = r + (dir * dr);
-          let nc = c + (dir * dc);
-          let count = 0;
-          let foundOpponent = true;
-          
-          while (foundOpponent && isValid(nr, nc) && count < 4) {
-            if (board[nr][nc] === opponent) {
-              count++;
-              nr += dir * dr;
-              nc += dir * dc;
-            } else {
-              foundOpponent = false;
-              if (board[nr][nc] === "") openEnds++;
+          // Check in both directions
+          for (let dir = -1; dir <= 1; dir += 2) {
+            let nr = r + dir * dr;
+            let nc = c + dir * dc;
+            let count = 0;
+            let foundOpponent = true;
+
+            while (foundOpponent && isValid(nr, nc) && count < 4) {
+              if (board[nr][nc] === opponent) {
+                count++;
+                nr += dir * dr;
+                nc += dir * dc;
+              } else {
+                foundOpponent = false;
+                if (board[nr][nc] === "") openEnds++;
+              }
+            }
+            sequence += count;
+          }
+
+          // Evaluate threat potential
+          if (sequence >= 3 && openEnds >= 1) threatLevel += 100;
+          if (sequence >= 2 && openEnds >= 2) threatLevel += 50;
+        });
+
+        return threatLevel;
+      }
+
+      /********** IMPROVED QUICK EVALUATION **********/
+      function quickEvaluate(r, c) {
+        let score = 0;
+        // Prioritize blocking opponent patterns
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = r + dr,
+              nc = c + dc;
+            if (isValid(nr, nc)) {
+              // Higher scores for positions near opponent stones
+              if (board[nr][nc] === "black") score += 30;
+              else if (board[nr][nc] === "white") score += 10;
             }
           }
-          sequence += count;
         }
+        return score;
+      }
 
-        // Evaluate threat potential
-        if (sequence >= 3 && openEnds >= 1) threatLevel += 100;
-        if (sequence >= 2 && openEnds >= 2) threatLevel += 50;
-      });
+      /********** ENHANCED PATTERN DETECTION **********/
+      function evaluateBoard() {
+        if (winExists("white")) return PATTERN_WEIGHTS.five;
+        if (winExists("black")) return -PATTERN_WEIGHTS.five;
 
-      return threatLevel;
-    }
+        let whiteScore = 0,
+          blackScore = 0;
 
-    /********** IMPROVED QUICK EVALUATION **********/
-    function quickEvaluate(r, c) {
-      let score = 0;
-      // Prioritize blocking opponent patterns
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue;
-          const nr = r + dr, nc = c + dc;
-          if (isValid(nr, nc)) {
-            // Higher scores for positions near opponent stones
-            if (board[nr][nc] === "black") score += 30;
-            else if (board[nr][nc] === "white") score += 10;
+        [
+          ["white", whiteScore],
+          ["black", blackScore],
+        ].forEach(([player, score]) => {
+          for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
+              if (board[r][c] === player) {
+                const directions = [
+                  [0, 1],
+                  [1, 0],
+                  [1, 1],
+                  [1, -1],
+                ];
+                directions.forEach(([dr, dc]) => {
+                  let sequence = 1;
+                  let openEnds = 0;
+                  let potential = 0;
+
+                  // Forward scan
+                  let [nr, nc] = [r + dr, c + dc];
+                  let foundEmpty = false;
+                  while (isValid(nr, nc)) {
+                    if (board[nr][nc] === player) sequence++;
+                    else {
+                      if (board[nr][nc] === "") {
+                        openEnds++;
+                        foundEmpty = true;
+                      }
+                      break;
+                    }
+                    nr += dr;
+                    nc += dc;
+                  }
+                  if (!foundEmpty && isValid(nr, nc)) openEnds++;
+
+                  // Backward scan
+                  [nr, nc] = [r - dr, c - dc];
+                  foundEmpty = false;
+                  while (isValid(nr, nc)) {
+                    if (board[nr][nc] === player) sequence++;
+                    else {
+                      if (board[nr][nc] === "") {
+                        openEnds++;
+                        foundEmpty = true;
+                      }
+                      break;
+                    }
+                    nr -= dr;
+                    nc -= dc;
+                  }
+                  if (!foundEmpty && isValid(nr, nc)) openEnds++;
+
+                  // Evaluate patterns with improved logic
+                  if (sequence >= 5) {
+                    score += PATTERN_WEIGHTS.five;
+                  } else if (sequence === 4) {
+                    if (openEnds >= 1) score += PATTERN_WEIGHTS.openFour;
+                    else score += PATTERN_WEIGHTS.closedFour;
+                    // Add potential four detection
+                    if (openEnds >= 1) score += PATTERN_WEIGHTS.potentialFour;
+                  } else if (sequence === 3) {
+                    if (openEnds >= 1) {
+                      score += PATTERN_WEIGHTS.openThree;
+                      // Extra weight for open three with two open ends
+                      if (openEnds >= 2)
+                        score += PATTERN_WEIGHTS.potentialFour * 2;
+                    } else {
+                      score += PATTERN_WEIGHTS.closedThree;
+                    }
+                  } else if (sequence === 2 && openEnds >= 1) {
+                    score += PATTERN_WEIGHTS.openTwo;
+                  }
+                });
+              }
+            }
           }
+        });
+
+        return whiteScore - blackScore;
+      }
+
+      function minimax(depth, maximizing, alpha, beta) {
+        if (depth === 0 || gameOver) return evaluateBoard();
+
+        const moves = getCandidateMoves();
+        if (maximizing) {
+          let maxEval = -Infinity;
+          for (const move of moves) {
+            board[move.row][move.col] = "white";
+            const eval = minimax(depth - 1, false, alpha, beta);
+            board[move.row][move.col] = "";
+            maxEval = Math.max(maxEval, eval);
+            alpha = Math.max(alpha, eval);
+            if (beta <= alpha) break;
+          }
+          return maxEval;
+        } else {
+          let minEval = Infinity;
+          for (const move of moves) {
+            board[move.row][move.col] = "black";
+            const eval = minimax(depth - 1, true, alpha, beta);
+            board[move.row][move.col] = "";
+            minEval = Math.min(minEval, eval);
+            beta = Math.min(beta, eval);
+            if (beta <= alpha) break;
+          }
+          return minEval;
         }
       }
-      return score;
-    }
 
-    /********** ENHANCED PATTERN DETECTION **********/
-    function evaluateBoard() {
-      if (winExists("white")) return PATTERN_WEIGHTS.five;
-      if (winExists("black")) return -PATTERN_WEIGHTS.five;
-      
-      let whiteScore = 0, blackScore = 0;
-      
-      [["white", whiteScore], ["black", blackScore]].forEach(([player, score]) => {
+      function winExists(player) {
         for (let r = 0; r < boardSize; r++) {
           for (let c = 0; c < boardSize; c++) {
             if (board[r][c] === player) {
-              const directions = [[0,1], [1,0], [1,1], [1,-1]];
-              directions.forEach(([dr, dc]) => {
-                let sequence = 1;
-                let openEnds = 0;
-                let potential = 0;
-
-                // Forward scan
-                let [nr, nc] = [r+dr, c+dc];
-                let foundEmpty = false;
-                while (isValid(nr, nc)) {
-                  if (board[nr][nc] === player) sequence++;
-                  else {
-                    if (board[nr][nc] === "") {
-                      openEnds++;
-                      foundEmpty = true;
-                    }
-                    break;
-                  }
+              const directions = [
+                { dr: 0, dc: 1 },
+                { dr: 1, dc: 0 },
+                { dr: 1, dc: 1 },
+                { dr: 1, dc: -1 },
+              ];
+              for (const { dr, dc } of directions) {
+                let count = 1;
+                let nr = r + dr,
+                  nc = c + dc;
+                while (isValid(nr, nc) && board[nr][nc] === player) {
+                  count++;
                   nr += dr;
                   nc += dc;
                 }
-                if (!foundEmpty && isValid(nr, nc)) openEnds++;
-
-                // Backward scan
-                [nr, nc] = [r-dr, c-dc];
-                foundEmpty = false;
-                while (isValid(nr, nc)) {
-                  if (board[nr][nc] === player) sequence++;
-                  else {
-                    if (board[nr][nc] === "") {
-                      openEnds++;
-                      foundEmpty = true;
-                    }
-                    break;
-                  }
-                  nr -= dr;
-                  nc -= dc;
-                }
-                if (!foundEmpty && isValid(nr, nc)) openEnds++;
-
-                // Evaluate patterns with improved logic
-                if (sequence >= 5) {
-                  score += PATTERN_WEIGHTS.five;
-                } else if (sequence === 4) {
-                  if (openEnds >= 1) score += PATTERN_WEIGHTS.openFour;
-                  else score += PATTERN_WEIGHTS.closedFour;
-                  // Add potential four detection
-                  if (openEnds >= 1) score += PATTERN_WEIGHTS.potentialFour;
-                } else if (sequence === 3) {
-                  if (openEnds >= 1) {
-                    score += PATTERN_WEIGHTS.openThree;
-                    // Extra weight for open three with two open ends
-                    if (openEnds >= 2) score += PATTERN_WEIGHTS.potentialFour * 2;
-                  } else {
-                    score += PATTERN_WEIGHTS.closedThree;
-                  }
-                } else if (sequence === 2 && openEnds >= 1) {
-                  score += PATTERN_WEIGHTS.openTwo;
-                }
-              });
-            }
-          }
-        }
-      });
-
-      return whiteScore - blackScore;
-    }
-
-    function minimax(depth, maximizing, alpha, beta) {
-      if (depth === 0 || gameOver) return evaluateBoard();
-      
-      const moves = getCandidateMoves();
-      if (maximizing) {
-        let maxEval = -Infinity;
-        for (const move of moves) {
-          board[move.row][move.col] = "white";
-          const eval = minimax(depth-1, false, alpha, beta);
-          board[move.row][move.col] = "";
-          maxEval = Math.max(maxEval, eval);
-          alpha = Math.max(alpha, eval);
-          if (beta <= alpha) break;
-        }
-        return maxEval;
-      } else {
-        let minEval = Infinity;
-        for (const move of moves) {
-          board[move.row][move.col] = "black";
-          const eval = minimax(depth-1, true, alpha, beta);
-          board[move.row][move.col] = "";
-          minEval = Math.min(minEval, eval);
-          beta = Math.min(beta, eval);
-          if (beta <= alpha) break;
-        }
-        return minEval;
-      }
-    }
-
-    function winExists(player) {
-      for (let r = 0; r < boardSize; r++) {
-        for (let c = 0; c < boardSize; c++) {
-          if (board[r][c] === player) {
-            const directions = [
-              { dr: 0, dc: 1 }, { dr: 1, dc: 0 },
-              { dr: 1, dc: 1 }, { dr: 1, dc: -1 }
-            ];
-            for (const { dr, dc } of directions) {
-              let count = 1;
-              let nr = r + dr, nc = c + dc;
-              while (isValid(nr, nc) && board[nr][nc] === player) {
-                count++;
-                nr += dr;
-                nc += dc;
+                if (count >= 5) return true;
               }
-              if (count >= 5) return true;
             }
           }
         }
+        return false;
       }
-      return false;
-    }
 
-    /********** UTILITIES **********/
-    function highlightWinningStones(positions) {
-      positions.forEach(([row, col]) => {
-        const key = `${row}-${col}`;
-        if (stoneElements[key]) {
-          stoneElements[key].classList.add("winning-stone");
+      /********** UTILITIES **********/
+      function highlightWinningStones(positions) {
+        positions.forEach(([row, col]) => {
+          const key = `${row}-${col}`;
+          if (stoneElements[key]) {
+            stoneElements[key].classList.add("winning-stone");
+          }
+        });
+      }
+
+      function triggerCelebrationEffect() {
+        confetti({ particleCount: 100, spread: 70, origin: { x: 0, y: 0.5 } });
+        confetti({ particleCount: 100, spread: 70, origin: { x: 1, y: 0.5 } });
+        createRibbons();
+      }
+
+      function createRibbons() {
+        for (let i = 0; i < 20; i++) {
+          const ribbon = document.createElement("div");
+          ribbon.classList.add("ribbon");
+          Math.random() < 0.5
+            ? (ribbon.style.left = Math.random() * 30 + "%")
+            : (ribbon.style.right = Math.random() * 30 + "%");
+          const colors = [
+            "#FF0000",
+            "#00FF00",
+            "#0000FF",
+            "#FFFF00",
+            "#FF00FF",
+            "#00FFFF",
+          ];
+          ribbon.style.background = `linear-gradient(to bottom, ${
+            colors[Math.floor(Math.random() * colors.length)]
+          }, white)`;
+          ribbon.style.animationDelay = Math.random() * 0.5 + "s";
+          document.body.appendChild(ribbon);
+          setTimeout(() => ribbon.remove(), 2500);
         }
-      });
-    }
-
-    function triggerCelebrationEffect() {
-      confetti({ particleCount: 100, spread: 70, origin: { x: 0, y: 0.5 } });
-      confetti({ particleCount: 100, spread: 70, origin: { x: 1, y: 0.5 } });
-      createRibbons();
-    }
-
-    function createRibbons() {
-      for (let i = 0; i < 20; i++) {
-        const ribbon = document.createElement("div");
-        ribbon.classList.add("ribbon");
-        Math.random() < 0.5 
-          ? ribbon.style.left = (Math.random() * 30) + "%"
-          : ribbon.style.right = (Math.random() * 30) + "%";
-        const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
-        ribbon.style.background = `linear-gradient(to bottom, ${colors[Math.floor(Math.random() * colors.length)]}, white)`;
-        ribbon.style.animationDelay = (Math.random() * 0.5) + 's';
-        document.body.appendChild(ribbon);
-        setTimeout(() => ribbon.remove(), 2500);
       }
-    }
 
-    function isBoardFull() {
-      for (let i = 0; i < boardSize; i++) {
-        for (let j = 0; j < boardSize; j++) {
-          if (board[i][j] === "") return false;
+      function isBoardFull() {
+        for (let i = 0; i < boardSize; i++) {
+          for (let j = 0; j < boardSize; j++) {
+            if (board[i][j] === "") return false;
+          }
         }
+        return true;
       }
-      return true;
-    }
 
-    restartBtn.addEventListener("click", initBoard);
-    initBoard();
-  </script>
-</body>
+      restartBtn.addEventListener("click", initBoard);
+      initBoard();
+    </script>
+  </body>
 </html>
