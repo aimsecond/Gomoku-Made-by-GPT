@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gomoku vs. AI (Five in a Row)</title>
+  <!-- Canvas-confetti library for confetti effects -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #f7f7f7;
+      margin: 0;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    /* --- Board Container & Canvas --- */
+    #board {
+      position: relative;
+      margin: 20px auto;
+      background-color: #e4d7b5;
+    }
+    #boardCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+    /* --- Intersection Areas (clickable) --- */
+    .intersection {
+      position: absolute;
+      z-index: 1;
+      /* Transparent circle for click detection */
+      background: transparent;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    /* --- Stone Style --- */
+    .stone {
+      position: absolute;
+      border-radius: 50%;
+      /* pop-in animation */
+      animation: pop-in 0.3s ease-out;
+      z-index: 2;
+    }
+    .black {
+      background: black;
+    }
+    .white {
+      background: white;
+      border: 1px solid #ccc;
+    }
+    /* Stone pop-in animation */
+    @keyframes pop-in {
+      from {
+        transform: scale(0);
+      }
+      to {
+        transform: scale(1);
+      }
+    }
+    /* Winning stones glow effect */
+    .winning-stone {
+      animation: glow 1s infinite alternate;
+    }
+    @keyframes glow {
+      from {
+        box-shadow: 0 0 10px 5px yellow;
+      }
+      to {
+        box-shadow: 0 0 20px 10px orange;
+      }
+    }
+    /* Ribbon effect styling */
+    .ribbon {
+      position: fixed;
+      width: 10px;
+      height: 40px;
+      opacity: 0.8;
+      z-index: 1000;
+      animation: fall 2s ease-out forwards;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    /* Message and button styles */
+    #message {
+      margin: 20px;
+      font-size: 1.2em;
+    }
+    #restart {
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gomoku vs. AI (Five in a Row)</h1>
+  <div id="board">
+    <canvas id="boardCanvas"></canvas>
+  </div>
+  <div id="message">Current Turn: Black</div>
+  <button id="restart">Restart Game</button>
+
+  <script>
+    /********** CONFIGURATION **********/
+    const boardSize = 15;      // Number of intersections per side
+    const spacing = 40;        // Distance (in px) between intersections
+    const boardMargin = 20;    // Margin from edge of canvas to first intersection
+    const stoneSize = 30;      // Diameter of each stone
+    const clickAreaSize = 30;  // Diameter of the invisible clickable circle
+
+    // Calculate board pixel dimensions
+    const boardPixelSize = boardMargin * 2 + spacing * (boardSize - 1);
+
+    /********** STATE VARIABLES **********/
+    // 2D board state: board[row][col] is '', 'black', or 'white'
+    let board = [];
+    // To keep track of stone DOM elements (keyed by "row-col")
+    let stoneElements = {};
+    let currentPlayer = 'black';  // Human is always Black; AI is White.
+    let gameOver = false;
+
+    /********** DOM ELEMENTS **********/
+    const boardContainer = document.getElementById("board");
+    const canvas = document.getElementById("boardCanvas");
+    const ctx = canvas.getContext("2d");
+    const messageEl = document.getElementById("message");
+    const restartBtn = document.getElementById("restart");
+
+    /********** BOARD INITIALIZATION **********/
+    function initBoard() {
+      // Reset game state
+      board = [];
+      for (let i = 0; i < boardSize; i++) {
+        board[i] = [];
+        for (let j = 0; j < boardSize; j++) {
+          board[i][j] = "";
+        }
+      }
+      currentPlayer = "black";
+      gameOver = false;
+      messageEl.textContent = "Current Turn: Black";
+      stoneElements = {};
+      boardContainer.innerHTML = ""; // remove all child nodes
+      // Re-add the canvas
+      boardContainer.appendChild(canvas);
+      // Set board and canvas sizes
+      boardContainer.style.width = boardPixelSize + "px";
+      boardContainer.style.height = boardPixelSize + "px";
+      canvas.width = boardPixelSize;
+      canvas.height = boardPixelSize;
+
+      // Draw the board lines on the canvas
+      drawBoardLines();
+      // Create clickable intersections
+      createIntersections();
+    }
+
+    /********** DRAW BOARD LINES **********/
+    function drawBoardLines() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#333";
+      ctx.lineWidth = 1;
+      // Draw horizontal lines
+      for (let i = 0; i < boardSize; i++) {
+        const y = boardMargin + i * spacing;
+        ctx.beginPath();
+        ctx.moveTo(boardMargin, y);
+        ctx.lineTo(boardPixelSize - boardMargin, y);
+        ctx.stroke();
+      }
+      // Draw vertical lines
+      for (let j = 0; j < boardSize; j++) {
+        const x = boardMargin + j * spacing;
+        ctx.beginPath();
+        ctx.moveTo(x, boardMargin);
+        ctx.lineTo(x, boardPixelSize - boardMargin);
+        ctx.stroke();
+      }
+    }
+
+    /********** CREATE INTERSECTIONS **********/
+    function createIntersections() {
+      for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+          const inter = document.createElement("div");
+          inter.classList.add("intersection");
+          // Position the intersection: center at the grid point
+          const x = boardMargin + col * spacing;
+          const y = boardMargin + row * spacing;
+          inter.style.width = clickAreaSize + "px";
+          inter.style.height = clickAreaSize + "px";
+          inter.style.left = (x - clickAreaSize / 2) + "px";
+          inter.style.top = (y - clickAreaSize / 2) + "px";
+          inter.dataset.row = row;
+          inter.dataset.col = col;
+          inter.addEventListener("click", handleIntersectionClick);
+          boardContainer.appendChild(inter);
+        }
+      }
+    }
+
+    /********** HANDLE HUMAN MOVE **********/
+    function handleIntersectionClick(e) {
+      if (gameOver || currentPlayer !== "black") return;
+      const row = parseInt(e.currentTarget.dataset.row, 10);
+      const col = parseInt(e.currentTarget.dataset.col, 10);
+      if (board[row][col] !== "") return; // Already occupied
+      board[row][col] = "black";
+      placeStone(row, col, "black");
+      const winPositions = checkWin(row, col, "black");
+      if (winPositions) {
+        messageEl.textContent = "Black wins!";
+        gameOver = true;
+        highlightWinningStones(winPositions);
+        triggerCelebrationEffect();
+        return;
+      }
+      if (isBoardFull()) {
+        messageEl.textContent = "Draw!";
+        gameOver = true;
+        return;
+      }
+      // Switch to AI turn after a short delay
+      currentPlayer = "white";
+      messageEl.textContent = "AI is thinking...";
+      setTimeout(aiMakeMove, 500);
+    }
+
+    /********** PLACE STONE (UI) **********/
+    function placeStone(row, col, player) {
+      const stone = document.createElement("div");
+      stone.classList.add("stone", player);
+      stone.style.width = stoneSize + "px";
+      stone.style.height = stoneSize + "px";
+      const x = boardMargin + col * spacing;
+      const y = boardMargin + row * spacing;
+      stone.style.left = (x - stoneSize / 2) + "px";
+      stone.style.top = (y - stoneSize / 2) + "px";
+      boardContainer.appendChild(stone);
+      stoneElements[`${row}-${col}`] = stone;
+    }
+
+    /********** WIN DETECTION (for recent move) **********/
+    // (Reusing the earlier method that checks from the last placed stone)
+    function checkWin(row, col, player) {
+      const directions = [
+        { dr: 0, dc: 1 },
+        { dr: 1, dc: 0 },
+        { dr: 1, dc: 1 },
+        { dr: 1, dc: -1 }
+      ];
+      for (let { dr, dc } of directions) {
+        const line = getLine(row, col, dr, dc, player);
+        if (line.length >= 5) {
+          return line;
+        }
+      }
+      return null;
+    }
+    function getLine(row, col, dr, dc, player) {
+      let line = [[row, col]];
+      let r = row + dr, c = col + dc;
+      while (isValid(r, c) && board[r][c] === player) {
+        line.push([r, c]);
+        r += dr;
+        c += dc;
+      }
+      r = row - dr, c = col - dc;
+      while (isValid(r, c) && board[r][c] === player) {
+        line.unshift([r, c]);
+        r -= dr;
+        c -= dc;
+      }
+      return line;
+    }
+    function isValid(row, col) {
+      return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
+    }
+
+    /********** HIGHLIGHT WINNING STONES **********/
+    function highlightWinningStones(positions) {
+      positions.forEach(([row, col]) => {
+        const key = `${row}-${col}`;
+        if (stoneElements[key]) {
+          stoneElements[key].classList.add("winning-stone");
+        }
+      });
+    }
+
+    /********** CELEBRATION EFFECTS **********/
+    function triggerCelebrationEffect() {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { x: 0, y: 0.5 }
+      });
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { x: 1, y: 0.5 }
+      });
+      createRibbons();
+    }
+    function createRibbons() {
+      for (let i = 0; i < 20; i++) {
+        const ribbon = document.createElement("div");
+        ribbon.classList.add("ribbon");
+        if (Math.random() < 0.5) {
+          ribbon.style.left = (Math.random() * 30) + "%";
+        } else {
+          ribbon.style.right = (Math.random() * 30) + "%";
+        }
+        const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        ribbon.style.background = `linear-gradient(to bottom, ${color}, white)`;
+        ribbon.style.animationDelay = (Math.random() * 0.5) + 's';
+        document.body.appendChild(ribbon);
+        setTimeout(() => {
+          ribbon.remove();
+        }, 2500);
+      }
+    }
+
+    /********** AI LOGIC **********/
+    // AI uses minimax with alpha-beta pruning and a simple evaluation.
+    // Adjust search depth as desired (here, depth 3 is used).
+    function aiMakeMove() {
+      if (gameOver) return;
+      const moves = getCandidateMoves();
+      let bestEval = -Infinity;
+      let bestMove = null;
+      for (const move of moves) {
+        board[move.row][move.col] = "white";
+        const evalScore = minimax(3, false, -Infinity, Infinity);
+        board[move.row][move.col] = "";
+        if (evalScore > bestEval) {
+          bestEval = evalScore;
+          bestMove = move;
+        }
+      }
+      if (bestMove) {
+        board[bestMove.row][bestMove.col] = "white";
+        placeStone(bestMove.row, bestMove.col, "white");
+        const winPositions = checkWin(bestMove.row, bestMove.col, "white");
+        if (winPositions) {
+          messageEl.textContent = "White wins!";
+          gameOver = true;
+          highlightWinningStones(winPositions);
+          triggerCelebrationEffect();
+          return;
+        }
+        if (isBoardFull()) {
+          messageEl.textContent = "Draw!";
+          gameOver = true;
+          return;
+        }
+        currentPlayer = "black";
+        messageEl.textContent = "Current Turn: Black";
+      }
+    }
+
+    // Generate candidate moves: only consider empty cells adjacent to existing stones.
+    function getCandidateMoves() {
+      const moves = [];
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          if (board[r][c] === "") {
+            let adjacent = false;
+            for (let dr = -1; dr <= 1; dr++) {
+              for (let dc = -1; dc <= 1; dc++) {
+                const nr = r + dr, nc = c + dc;
+                if (isValid(nr, nc) && board[nr][nc] !== "") {
+                  adjacent = true;
+                }
+              }
+            }
+            if (adjacent) moves.push({ row: r, col: c });
+          }
+        }
+      }
+      // If no moves found (empty board), start at center.
+      if (moves.length === 0) {
+        moves.push({ row: Math.floor(boardSize / 2), col: Math.floor(boardSize / 2) });
+      }
+      return moves;
+    }
+
+    // Minimax with alpha-beta pruning.
+    function minimax(depth, maximizingPlayer, alpha, beta) {
+      if (
+        depth === 0 ||
+        winExists("white") ||
+        winExists("black") ||
+        isBoardFull()
+      ) {
+        return evaluateBoard();
+      }
+      const moves = getCandidateMoves();
+      if (maximizingPlayer) {
+        let maxEval = -Infinity;
+        for (const move of moves) {
+          board[move.row][move.col] = "white";
+          const evalScore = minimax(depth - 1, false, alpha, beta);
+          board[move.row][move.col] = "";
+          maxEval = Math.max(maxEval, evalScore);
+          alpha = Math.max(alpha, evalScore);
+          if (beta <= alpha) break;
+        }
+        return maxEval;
+      } else {
+        let minEval = Infinity;
+        for (const move of moves) {
+          board[move.row][move.col] = "black";
+          const evalScore = minimax(depth - 1, true, alpha, beta);
+          board[move.row][move.col] = "";
+          minEval = Math.min(minEval, evalScore);
+          beta = Math.min(beta, evalScore);
+          if (beta <= alpha) break;
+        }
+        return minEval;
+      }
+    }
+
+    // Check if a given player has a five-in-a-row anywhere on the board.
+    function winExists(player) {
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          if (board[r][c] === player) {
+            const directions = [
+              { dr: 0, dc: 1 },
+              { dr: 1, dc: 0 },
+              { dr: 1, dc: 1 },
+              { dr: 1, dc: -1 }
+            ];
+            for (const { dr, dc } of directions) {
+              let count = 1;
+              let nr = r + dr, nc = c + dc;
+              while (isValid(nr, nc) && board[nr][nc] === player) {
+                count++;
+                nr += dr;
+                nc += dc;
+              }
+              if (count >= 5) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    // A simple evaluation function.
+    // Returns a high positive score if White (AI) is winning,
+    // a high negative score if Black is winning,
+    // otherwise uses the difference in maximum contiguous stones.
+    function evaluateBoard() {
+      if (winExists("white")) return 1000000;
+      if (winExists("black")) return -1000000;
+      return (getMaxSequence("white") - getMaxSequence("black")) * 10;
+    }
+
+    // Returns the maximum contiguous sequence length for the given player.
+    function getMaxSequence(player) {
+      let maxSeq = 0;
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          if (board[r][c] === player) {
+            const directions = [
+              { dr: 0, dc: 1 },
+              { dr: 1, dc: 0 },
+              { dr: 1, dc: 1 },
+              { dr: 1, dc: -1 }
+            ];
+            for (const { dr, dc } of directions) {
+              let count = 1;
+              let nr = r + dr, nc = c + dc;
+              while (isValid(nr, nc) && board[nr][nc] === player) {
+                count++;
+                nr += dr;
+                nc += dc;
+              }
+              maxSeq = Math.max(maxSeq, count);
+            }
+          }
+        }
+      }
+      return maxSeq;
+    }
+
+    /********** CHECK IF BOARD IS FULL **********/
+    function isBoardFull() {
+      for (let i = 0; i < boardSize; i++) {
+        for (let j = 0; j < boardSize; j++) {
+          if (board[i][j] === "") return false;
+        }
+      }
+      return true;
+    }
+
+    /********** UTILITY: Capitalize String **********/
+    function capitalize(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    /********** RESTART GAME **********/
+    restartBtn.addEventListener("click", initBoard);
+
+    // Initialize the game when the page loads.
+    initBoard();
+  </script>
+</body>
+</html>
