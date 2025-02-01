@@ -118,6 +118,7 @@
 
     // Calculate board pixel dimensions
     const boardPixelSize = boardMargin * 2 + spacing * (boardSize - 1);
+    const AI_SEARCH_DEPTH = 2;  // Increased depth for better AI
 
     /********** STATE VARIABLES **********/
     // 2D board state: board[row][col] is '', 'black', or 'white'
@@ -133,6 +134,17 @@
     const ctx = canvas.getContext("2d");
     const messageEl = document.getElementById("message");
     const restartBtn = document.getElementById("restart");
+
+    /********** PATTERN WEIGHTS **********/
+    const PATTERN_WEIGHTS = {
+      five: 1000000,
+      openFour: 50000,
+      closedFour: 1000,
+      openThree: 800,
+      closedThree: 150,
+      openTwo: 50,
+      potentialFour: 3000
+    };
 
     /********** BOARD INITIALIZATION **********/
     function initBoard() {
@@ -250,6 +262,32 @@
 
     /********** WIN DETECTION (for recent move) **********/
     // (Reusing the earlier method that checks from the last placed stone)
+        // Check if a given player has a five-in-a-row anywhere on the board.
+    function winExists(player) {
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          if (board[r][c] === player) {
+            const directions = [
+              { dr: 0, dc: 1 },
+              { dr: 1, dc: 0 },
+              { dr: 1, dc: 1 },
+              { dr: 1, dc: -1 }
+            ];
+            for (const { dr, dc } of directions) {
+              let count = 1;
+              let nr = r + dr, nc = c + dc;
+              while (isValid(nr, nc) && board[nr][nc] === player) {
+                count++;
+                nr += dr;
+                nc += dc;
+              }
+              if (count >= 5) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
     function checkWin(row, col, player) {
       const directions = [
         { dr: 0, dc: 1 },
@@ -329,89 +367,171 @@
       }
     }
 
-    /********** AI LOGIC **********/
-    // AI uses minimax with alpha-beta pruning and a simple evaluation.
-    // Adjust search depth as desired (here, depth 3 is used).
+    /********** IMPROVED AI LOGIC **********/
     function aiMakeMove() {
       if (gameOver) return;
-      const moves = getCandidateMoves();
-      let bestEval = -Infinity;
+      
+      const startTime = Date.now();
       let bestMove = null;
-      for (const move of moves) {
-        board[move.row][move.col] = "white";
-        const evalScore = minimax(3, false, -Infinity, Infinity);
-        board[move.row][move.col] = "";
-        if (evalScore > bestEval) {
-          bestEval = evalScore;
-          bestMove = move;
-        }
-      }
-      if (bestMove) {
-        board[bestMove.row][bestMove.col] = "white";
-        placeStone(bestMove.row, bestMove.col, "white");
-        const winPositions = checkWin(bestMove.row, bestMove.col, "white");
-        if (winPositions) {
-          messageEl.textContent = "White wins!";
-          gameOver = true;
-          highlightWinningStones(winPositions);
-          triggerCelebrationEffect();
-          return;
-        }
-        if (isBoardFull()) {
-          messageEl.textContent = "Draw!";
-          gameOver = true;
-          return;
-        }
-        currentPlayer = "black";
-        messageEl.textContent = "Current Turn: Black";
-      }
-    }
+      let bestValue = -Infinity;
+      
+      const moves = getCandidateMoves();
+      if (moves.length === 0) return;
 
-    // Generate candidate moves: only consider empty cells adjacent to existing stones.
-    function getCandidateMoves() {
-      const moves = [];
-      for (let r = 0; r < boardSize; r++) {
-        for (let c = 0; c < boardSize; c++) {
-          if (board[r][c] === "") {
-            let adjacent = false;
-            for (let dr = -1; dr <= 1; dr++) {
-              for (let dc = -1; dc <= 1; dc++) {
-                const nr = r + dr, nc = c + dc;
-                if (isValid(nr, nc) && board[nr][nc] !== "") {
-                  adjacent = true;
-                }
-              }
-            }
-            if (adjacent) moves.push({ row: r, col: c });
+      // Iterative deepening with time management
+      for (let depth = 1; depth <= AI_SEARCH_DEPTH; depth++) {
+        if (Date.now() - startTime > 1000) break; // Safety timeout
+        
+        for (const move of moves) {
+          board[move.row][move.col] = "white";
+          const value = minimax(depth, false, -Infinity, Infinity);
+          board[move.row][move.col] = "";
+          
+          if (value > bestValue) {
+            bestValue = value;
+            bestMove = move;
           }
         }
       }
-      // If no moves found (empty board), start at center.
-      if (moves.length === 0) {
-        moves.push({ row: Math.floor(boardSize / 2), col: Math.floor(boardSize / 2) });
-      }
-      return moves;
+
+      if (bestMove) makeAIMove(bestMove);
     }
 
-    // Minimax with alpha-beta pruning.
-    function minimax(depth, maximizingPlayer, alpha, beta) {
-      if (
-        depth === 0 ||
-        winExists("white") ||
-        winExists("black") ||
-        isBoardFull()
-      ) {
-        return evaluateBoard();
+    function makeAIMove(move) {
+      board[move.row][move.col] = "white";
+      
+      const winPositions = checkWin(move.row, move.col, "white");
+      if (winPositions) {
+        endGame("White wins!", winPositions);
+        return;
       }
+      
+      if (isBoardFull()) {
+        endGame("Draw!");
+        return;
+      }
+      
+      currentPlayer = "black";
+      messageEl.textContent = "Current Turn: Black";
+    }
+
+    /********** OPTIMIZED CANDIDATE MOVES **********/
+    function getCandidateMoves() {
+      const moves = new Set();
+      const existingStones = [];
+      
+      // Collect all existing stones
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          if (board[r][c] !== "") existingStones.push([r, c]);
+        }
+      }
+
+      // Generate moves around existing stones (2 spaces)
+      existingStones.forEach(([r, c]) => {
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            const nr = r + dr, nc = c + dc;
+            if (isValid(nr, nc) && board[nr][nc] === "") {
+              moves.add(`${nr}-${nc}`);
+            }
+          }
+        }
+      });
+
+      // Fallback to center if no moves
+      if (moves.size === 0) {
+        const center = Math.floor(boardSize/2);
+        return [{ row: center, col: center }];
+      }
+
+      // Convert to sorted array (by potential)
+      return Array.from(moves).map(s => {
+        const [r, c] = s.split('-').map(Number);
+        return { row: r, col: c, score: quickEvaluate(r, c) };
+      }).sort((a, b) => b.score - a.score).slice(0, 15); // Limit to top 15 moves
+    }
+
+    /********** OPTIMIZED EVALUATION **********/
+    function quickEvaluate(r, c) {
+      // Fast approximation for move ordering
+      let score = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          if (isValid(r+dr, c+dc) && board[r+dr][c+dc] !== "") score += 10;
+        }
+      }
+      return score;
+    }
+
+    function evaluateBoard() {
+      if (winExists("white")) return PATTERN_WEIGHTS.five;
+      if (winExists("black")) return -PATTERN_WEIGHTS.five;
+      
+      let whiteScore = 0, blackScore = 0;
+      
+      // Pattern detection for both players
+      [["white", whiteScore], ["black", blackScore]].forEach(([player, score]) => {
+        for (let r = 0; r < boardSize; r++) {
+          for (let c = 0; c < boardSize; c++) {
+            if (board[r][c] === player) {
+              const directions = [[0,1], [1,0], [1,1], [1,-1]];
+              
+              directions.forEach(([dr, dc]) => {
+                let sequence = 1;
+                let openEnds = 0;
+                let potential = 0;
+
+                // Forward direction
+                let [nr, nc] = [r+dr, c+dc];
+                while (isValid(nr, nc) && (board[nr][nc] === player || board[nr][nc] === "")) {
+                  if (board[nr][nc] === player) sequence++;
+                  else if (isValid(nr+dr, nc+dc)) openEnds++;
+                  nr += dr; nc += dc;
+                }
+
+                // Backward direction
+                [nr, nc] = [r-dr, c-dc];
+                while (isValid(nr, nc) && (board[nr][nc] === player || board[nr][nc] === "")) {
+                  if (board[nr][nc] === player) sequence++;
+                  else if (isValid(nr-dr, nc-dc)) openEnds++;
+                  nr -= dr; nc -= dc;
+                }
+
+                // Evaluate patterns
+                if (sequence >= 5) {
+                  score += PATTERN_WEIGHTS.five;
+                } else if (sequence === 4) {
+                  score += openEnds >= 1 ? PATTERN_WEIGHTS.openFour : PATTERN_WEIGHTS.closedFour;
+                } else if (sequence === 3) {
+                  score += openEnds >= 1 ? PATTERN_WEIGHTS.openThree : PATTERN_WEIGHTS.closedThree;
+                  if (openEnds >= 2) score += PATTERN_WEIGHTS.potentialFour;
+                } else if (sequence === 2 && openEnds >= 1) {
+                  score += PATTERN_WEIGHTS.openTwo;
+                }
+              });
+            }
+          }
+        }
+      });
+
+      return whiteScore - blackScore;
+    }
+
+    /********** OPTIMIZED MINIMAX **********/
+    function minimax(depth, maximizing, alpha, beta) {
+      if (depth === 0 || gameOver) return evaluateBoard();
+      
       const moves = getCandidateMoves();
-      if (maximizingPlayer) {
+      if (maximizing) {
         let maxEval = -Infinity;
         for (const move of moves) {
           board[move.row][move.col] = "white";
-          const evalScore = minimax(depth - 1, false, alpha, beta);
+          const eval = minimax(depth-1, false, alpha, beta);
           board[move.row][move.col] = "";
-          maxEval = Math.max(maxEval, evalScore);
-          alpha = Math.max(alpha, evalScore);
+          maxEval = Math.max(maxEval, eval);
+          alpha = Math.max(alpha, eval);
           if (beta <= alpha) break;
         }
         return maxEval;
@@ -419,79 +539,14 @@
         let minEval = Infinity;
         for (const move of moves) {
           board[move.row][move.col] = "black";
-          const evalScore = minimax(depth - 1, true, alpha, beta);
+          const eval = minimax(depth-1, true, alpha, beta);
           board[move.row][move.col] = "";
-          minEval = Math.min(minEval, evalScore);
-          beta = Math.min(beta, evalScore);
+          minEval = Math.min(minEval, eval);
+          beta = Math.min(beta, eval);
           if (beta <= alpha) break;
         }
         return minEval;
       }
-    }
-
-    // Check if a given player has a five-in-a-row anywhere on the board.
-    function winExists(player) {
-      for (let r = 0; r < boardSize; r++) {
-        for (let c = 0; c < boardSize; c++) {
-          if (board[r][c] === player) {
-            const directions = [
-              { dr: 0, dc: 1 },
-              { dr: 1, dc: 0 },
-              { dr: 1, dc: 1 },
-              { dr: 1, dc: -1 }
-            ];
-            for (const { dr, dc } of directions) {
-              let count = 1;
-              let nr = r + dr, nc = c + dc;
-              while (isValid(nr, nc) && board[nr][nc] === player) {
-                count++;
-                nr += dr;
-                nc += dc;
-              }
-              if (count >= 5) return true;
-            }
-          }
-        }
-      }
-      return false;
-    }
-
-    // A simple evaluation function.
-    // Returns a high positive score if White (AI) is winning,
-    // a high negative score if Black is winning,
-    // otherwise uses the difference in maximum contiguous stones.
-    function evaluateBoard() {
-      if (winExists("white")) return 1000000;
-      if (winExists("black")) return -1000000;
-      return (getMaxSequence("white") - getMaxSequence("black")) * 10;
-    }
-
-    // Returns the maximum contiguous sequence length for the given player.
-    function getMaxSequence(player) {
-      let maxSeq = 0;
-      for (let r = 0; r < boardSize; r++) {
-        for (let c = 0; c < boardSize; c++) {
-          if (board[r][c] === player) {
-            const directions = [
-              { dr: 0, dc: 1 },
-              { dr: 1, dc: 0 },
-              { dr: 1, dc: 1 },
-              { dr: 1, dc: -1 }
-            ];
-            for (const { dr, dc } of directions) {
-              let count = 1;
-              let nr = r + dr, nc = c + dc;
-              while (isValid(nr, nc) && board[nr][nc] === player) {
-                count++;
-                nr += dr;
-                nc += dc;
-              }
-              maxSeq = Math.max(maxSeq, count);
-            }
-          }
-        }
-      }
-      return maxSeq;
     }
 
     /********** CHECK IF BOARD IS FULL **********/
